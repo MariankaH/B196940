@@ -11,25 +11,33 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Adding libraries
 
-```{r}
+```{r, include=FALSE}
 library(tidyverse)
+library(janitor)
+library(gt)
+library(here)
+library(kableExtra)
 ```
 
-## R Markdown
+## Introduction
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+It this report I will be focusing on the number of prescribed doses of medication for ADHD per person. I will compare data before the first COVID-19 lockdown in the UK (march 2020) and the most recent data (july 2024). I will try to find any trends and differences between these two datasets. The aim of this report is to answer the question of: Is there an increased prescription of ADHD drugs pre and post COVID-19? The reason I am comparing these two datapoints is that there are rumours that quarantine lowered people's attention span as everyone was learning and working from home, looking at their computer the whole day. I would like to find out if this is true and if there was an increase in prescription of ADHD drugs to tackle the problem of low attention span.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# Let's load our data and filter for 5 drugs used to treat ADHD
 
-```{r cars}
-summary(cars)
+```{r, include=FALSE}
+july_2024 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/1cb425fc-640c-4b37-9013-f8e97f274085/download/pitc202407.csv") %>% 
+  filter(str_detect(BNFItemDescription, "METHYLPHENIDATE|LISDEXAMFETAMINE|DEXAMFETAMINE|ATOMOXETINE|GUANFACINE"))
+
+march_2020 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/9581bd8d-5568-4462-93a6-6d7bfbbe7cbc/download/pitc202003.csv") %>% 
+  filter(str_detect(BNFItemDescription, "METHYLPHENIDATE|LISDEXAMFETAMINE|DEXAMFETAMINE|ATOMOXETINE|GUANFACINE"))
 ```
 
 ## Including Plots
 
 You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
+```{r pressure, include=FALSE}
 pressure %>% 
   ggplot(aes(x = temperature, y = pressure)) +
   geom_point() +
