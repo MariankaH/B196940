@@ -14,34 +14,145 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, include=FALSE}
 library(tidyverse)
 library(janitor)
+library(sf)
 library(gt)
 library(here)
 library(kableExtra)
+library(patchwork)
 ```
 
 ## Introduction
 
-It this report I will be focusing on the number of prescribed doses of medication for ADHD per person. I will compare data before the first COVID-19 lockdown in the UK (march 2020) and the most recent data (july 2024). I will try to find any trends and differences between these two datasets. The aim of this report is to answer the question of: Is there an increased prescription of ADHD drugs pre and post COVID-19? The reason I am comparing these two datapoints is that there are rumours that quarantine lowered people's attention span as everyone was learning and working from home, looking at their computer the whole day. I would like to find out if this is true and if there was an increase in prescription of ADHD drugs to tackle the problem of low attention span.
+It this report, I will analyse trends in ADHD medication prescriptions in the UK by comparing data from two key periods: prior to the onset of the COVID-19 lockdown (March 2020) and the latest available data (July 2024). The focus is on the number of prescribed doses per capita, which will allow us to see changes over this period. The aim of this report is to answer the question: Has there been an increase in ADHD medication prescription related to COVID-19?
+
+The motivation behind this comparison arises from observations and discussions suggesting that the pandemic lockdowns, which forced people to study and work from home, might have negatively affected their attention span. This report aims to investigate whether there was a a rise in ADHD prescriptions that could reflect an increase in attention-related challenges following pandemic lockdowns.
 
 # Let's load our data and filter for 5 drugs used to treat ADHD
 
 ```{r, include=FALSE}
-july_2024 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/1cb425fc-640c-4b37-9013-f8e97f274085/download/pitc202407.csv") %>% 
-  filter(str_detect(BNFItemDescription, "METHYLPHENIDATE|LISDEXAMFETAMINE|DEXAMFETAMINE|ATOMOXETINE|GUANFACINE"))
+# ref: https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/1cb425fc-640c-4b37-9013-f8e97f274085/download/pitc202407.csv
 
-march_2020 <- read_csv("https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/9581bd8d-5568-4462-93a6-6d7bfbbe7cbc/download/pitc202003.csv") %>% 
-  filter(str_detect(BNFItemDescription, "METHYLPHENIDATE|LISDEXAMFETAMINE|DEXAMFETAMINE|ATOMOXETINE|GUANFACINE"))
+july_2024 <- read_csv(here("data", "july_2024.csv")) %>% 
+  filter(str_detect(BNFItemDescription, "METHYLPHENIDATE|LISDEXAMFETAMINE|DEXAMFETAMINE|ATOMOXETINE|GUANFACINE")) %>% 
+  clean_names()
+
+# ref: https://www.opendata.nhs.scot/dataset/84393984-14e9-4b0d-a797-b288db64d088/resource/9581bd8d-5568-4462-93a6-6d7bfbbe7cbc/download/pitc202003.csv
+
+march_2020 <- read_csv(here("data", "march_2020.csv")) %>% 
+  filter(str_detect(BNFItemDescription, "METHYLPHENIDATE|LISDEXAMFETAMINE|DEXAMFETAMINE|ATOMOXETINE|GUANFACINE")) %>% 
+  clean_names()
 ```
 
-## Including Plots
+# Let's load our data and filter for year 2020 and 2023
 
-You can also embed plots, for example:
+I want to know the populations across Scottish health boards. I used the data for 2020 because I am interested in the population in the year the first COVID-19 lockdown happened. However, I had to use year 2023 instead of 2024 because 2023 is the most recet year we have data on.
 
-```{r pressure, include=FALSE}
-pressure %>% 
-  ggplot(aes(x = temperature, y = pressure)) +
-  geom_point() +
-  theme_bw()
+```{r, include=FALSE}
+# ref: https://www.opendata.nhs.scot/dataset/7f010430-6ce1-4813-b25c-f7f335bdc4dc/resource/27a72cc8-d6d8-430c-8b4f-3109a9ceadb1/download/hb2019_pop_est_14102024.csv
+
+hb_population <- read_csv(here("data", "hb_population.csv"))
+
+population_2020 <- hb_population %>% 
+  filter(Year == "2020")
+
+population_2023 <- hb_population %>% 
+  filter(Year == "2023")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Let's load our NSH health boards shapefile
+
+```{r, include=FALSE}
+NHS_healthboards <- st_read(here("data", "NHS_healthboards_2019.shp"))
+```
+
+I joined the population to the prescription dataset and to the shapefile.
+
+```{r, include=FALSE}
+july_2024_joined <- july_2024 %>% 
+  group_by(hbt, paid_date_month) %>% 
+  summarise(paid_quantity = sum(paid_quantity)) %>% 
+  full_join(population_2023, by = c("hbt" = "HB")) %>% 
+  filter(Sex == "All") %>% 
+  select(c(hbt, paid_date_month, paid_quantity, AllAges)) %>% 
+  filter(!is.na(paid_quantity)) %>%  # getting rid of healthboard that is ambulance emergency
+  mutate(ratio = paid_quantity / AllAges) %>% 
+  full_join(NHS_healthboards, by = c("hbt" = "HBCode")) %>% 
+  mutate(paid_date_month = case_when(paid_date_month == "202407" ~ "July 2024"))
+
+march_2020_joined <- march_2020 %>% 
+  group_by(hbt, paid_date_month) %>% 
+  summarise(paid_quantity = sum(paid_quantity)) %>% 
+  full_join(population_2020, by = c("hbt" = "HB")) %>% 
+  filter(Sex == "All") %>% 
+  select(c(hbt, paid_date_month, paid_quantity, AllAges)) %>% 
+  filter(!is.na(paid_quantity)) %>%  # getting rid of healthboard that is ambulance emergency
+  mutate(ratio = paid_quantity / AllAges) %>% 
+  full_join(NHS_healthboards, by = c("hbt" = "HBCode")) %>% 
+  mutate(paid_date_month = case_when(paid_date_month == "202003" ~ "March 2020"))
+```
+
+## Figure
+
+```{r}
+joined_data_map <- full_join(march_2020_joined, july_2024_joined)
+
+joined_data_map <- joined_data_map %>% 
+  ggplot(aes(fill = ratio)) +
+  geom_sf(aes(geometry = geometry)) +
+  scale_fill_distiller(palette = 16, direction = 1) + 
+  theme_bw() +
+  facet_wrap(~factor(paid_date_month, levels=c("March 2020", "July 2024"))) +
+  labs(title = "Ratio of Number of Prescribed Doses of ADHD Medication and Health Board Population")
+
+joined_data_map
+```
+
+Seems like the ratio of population to number of doses of medication is higher in most health boards in Scotland. Interestingly, Shetlands' ratio went up from 0.0198 to 0.187. The only two health boards that decreased in their number of prescribed doses of ADHD medication are Orkney and Tayside.
+
+## Medications
+
+We filtered the data to only contain rows with Methylphenidate, Lisdexamfetamine, Dexamfetamine, Atomoxetine, and Guanfacine. These are the only drugs that have been licensed for the treatment of ADHD in the UK by NHS.
+
+## Figure 1 / Table 1
+
+First figure shows purchased doses of each of the 5 medications for ADHD. By looking at this, we can distinguish which of these medications is the most popular one. Moreover, we can see the change in prescription from March 2020 to July 2024.
+
+```{r}
+joined_data_mar2020_and_jul24 <- full_join(march_2020, july_2024) %>%
+  mutate(paid_date_month = case_when(paid_date_month == "202407" ~ "July 2024", paid_date_month == "202003" ~ "March 2020")) %>%
+  group_by(bnf_item_description, paid_date_month) %>% 
+  summarise(paid_quantity = sum(paid_quantity))
+
+table1 <- joined_data_mar2020_and_jul24 %>%
+  group_by(paid_date_month) %>% 
+  gt() %>% 
+  cols_label(bnf_item_description = "Name of Medication",
+             paid_quantity = "Number of Prescribed Doses") %>% 
+  tab_header(title = "Number of Prescribed Doses of ADHD Medication in March 2020 and July 2024",
+             subtitle = "Data from Open Data NHS Scotland")
+
+table2 <- joined_data_mar2020_and_jul24 %>% 
+  mutate(bnf_item_description = word(bnf_item_description, sep = "[ _]")) %>%
+  group_by(bnf_item_description, paid_date_month) %>% 
+  summarise(paid_quantity = sum(paid_quantity)) %>% 
+  ungroup() %>% 
+  gt(rowname_col = "bnf_item_description") %>% 
+  cols_label(bnf_item_description = "Name of Medication",
+             paid_date_month = "Month and year of prescription",
+             paid_quantity = "Number of prescribed doses") %>% 
+  tab_header(title = "Number of Prescribed Doses of ADHD Medication in March 2020 and July 2024",
+             subtitle = "Data from Open Data NHS Scotland") %>% 
+  cols_align(align = "center", columns = c(paid_date_month, paid_quantity))
+
+joined_data_mar2020_and_jul24_2 <- full_join(march_2020, july_2024) %>%
+  mutate(bnf_item_description = word(bnf_item_description, sep = "[ _]")) %>% 
+  group_by(bnf_item_description, paid_date_month) %>% 
+  summarise(paid_quantity = sum(paid_quantity))
+
+joined_data_mar2020_and_jul24_2 %>% 
+  ggplot(aes(x = bnf_item_description, y = log(paid_quantity), fill = paid_date_month)) +
+  geom_bar(stat = "identity", position = "dodge2")
+
+table2
+```
+
