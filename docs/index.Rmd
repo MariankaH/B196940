@@ -2,35 +2,62 @@
 title: "Assessment"
 author: "Mary Hronska"
 date: "2024-11-01"
-output: html_document
+output: 
+  html_document:
+    code_folding: show
+    toc: true
+    toc_float: true
+    number_sections: true
+    highlight: tango
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
+<style>
+body {
+text-align: justify}
+</style>
+
 # Introduction
 
-It this report, I will analyse trends in ADHD medication prescriptions in the UK by comparing data from the pre-COVID-19 period and post-COVID-19 period. The focus is on the number of prescribed doses per capita, which will allow us to see changes over this period. The aim of this report is to answer the question: Has there been an increase in ADHD medication prescription related to COVID-19?
+Attention Deficit Hyperactivity Disorder (ADHD), known for low attention span and hyperactivity, has been a centre of attention in research and public discourse for a long time (Toplak *et al.*, 2006). The prevalence of people diagnosed with ADHD increases yearly and, notably, there was a significant global increase in ADHD symptoms following the COVID-19 pandemic (Rogers *et al.*, 2023). It is thought that the pandemic lockdowns, which forced people to study and work from home, had negatively affected their attention span.
 
-The motivation behind this comparison arises from observations and discussions suggesting that the pandemic lockdowns, which forced people to study and work from home, might have negatively affected their attention span. This report aims to investigate whether there was a a rise in ADHD prescriptions that could reflect an increase in attention-related challenges following pandemic lockdowns.
+It this report, I will analyse trends in ADHD medication prescriptions in Scotland by comparing data from the pre-COVID-19 period and post-COVID-19 period. The focus is on the number of prescribed doses, which will allow us to see changes over this period. The aim of this report is to answer the question: **Has there been an increase in ADHD medication prescription that could reflect an increase in attention-related challenges following pandemic lockdowns?**
 
-## Adding libraries
+# Aims
 
-```{r libraries}
-library(tidyverse)
-library(janitor)
-library(sf)
-library(gt)
-library(here)
-library(kableExtra)
-library(patchwork)
-library(rjson)
+The overall aim is to uncover trends in ADHD medication prescription in Scotland pre- and post-COVID-19 lockdowns. The report will show:
+
+1. An overview of ADHD medication prescriptions from January 2019 to August 2024
+    + Is there an **increasing trend** in ADHD medication prescription?
+    + Which type of ADHD medication is the **most common**?
+2. A map of overall prescriptions in the year 2019 (pre-COVID-19 lockdowns) and the year 2023 (post-COVID-19 lockdowns).
+    + What is the trend of ADHD medication prescription between the **different regions of Scotland**?
+    + Which regions of Scotland saw the **highest increase** in ADHD medication prescription?
+3. A table of most prescribed ADHD medications in the past year in Lothian area.
+    + Which type and what dosage of ADHD medication is the **most common now**?
+
+# Report
+## ADHD medications licensed by NHS
+
+There are 5 ADHD medications that have been licensed for the treatment of ADHD in the UK by NHS. These medications are:
+
+* Atomoxetine
+* Dexamfetamine
+* Guangacine
+* Lisdexamfetamine
+* Methylphenidate
+
+### Load packages
+
+```{r packages}
+# load packages using shelf function from librarian package
+librarian::shelf(tidyverse, janitor, sf, here, kableExtra, gt, patchwork, rjson, plotly)
 ```
 
-# Load data and filter for ADHD medications
-
-I filtered the data to only contain rows with Methylphenidate, Lisdexamfetamine, Dexamfetamine, Atomoxetine, and Guanfacine. These are the only drugs that have been licensed for the treatment of ADHD in the UK by NHS.
+### Load data and filter for ADHD medications
 
 ```{r 5 years dataframe}
 # if the file "prescriptions.csv" does not exist in the data folder, create it and save it into the data folder
@@ -39,35 +66,23 @@ if (!file.exists(file = here("data", "prescriptions.csv"))) {
   
   # get all the URLs of the dataframes from the json file
   urls <- data.frame(url = unlist(map(json$result$resources, function(resource){resource$url}))) %>% 
-    # filter for datasets that are set between August 2019 and August 2024
+    # filter for dataframes that are set between January 2019 and August 2024
     mutate(date = as.numeric(str_extract(url, "/pitc(\\d+)\\.csv$", group = 1))) %>% 
     filter(date > 201812 & date < 202409)
   
   # read the dataframes from URLs and filter for the 5 types of medications licensed for the treatment of ADHD by the NHS
-  prescriptions <- lapply(urls$url, function(x){
-    read_csv(x) %>% 
-      filter(str_detect(BNFItemDescription, "METHYLPHENIDATE|LISDEXAMFETAMINE|DEXAMFETAMINE|ATOMOXETINE|GUANFACINE")) %>% 
-      clean_names()
+  prescriptions <- lapply(urls$url, function(url){
+    read_csv(url) %>% 
+      clean_names() %>% 
+      filter(str_detect(bnf_item_description, "ATOMOXETINE|DEXAMFETAMINE|GUANFACINE|LISDEXAMFETAMINE|METHYLPHENIDATE")) %>% 
+      # change the name of the "hbt2014" column into "hbt" in dataframes from the year 2019
+      rename(any_of(c("hbt" = "hbt2014"))) %>%
+      select(hbt, gp_practice, bnf_item_description, number_of_paid_items, paid_quantity, paid_date_month)
   })
 
-  test9 <- list()
-  test10 <- list()
-  
-  # divide dataframes into two groups according to the number of columns (9 or 10)
-  for (dataframe in prescriptions) {
-    if (ncol(dataframe) == 9) {
-      # change the name of the "hbt2014" column into "hbt" in dataframes from the year 2019
-      if ("hbt2014" %in% names(dataframe)) {
-        dataframe <- rename(dataframe, "hbt" = "hbt2014")
-      }
-      test9 <- append(test9, list(dataframe))
-    } else if (ncol(dataframe) == 10) {
-      test10 <- append(test10, list(dataframe))
-    }
-  }
-  
-  # join the two groups of dataframes into one dataframe
-  prescriptions <- full_join(do.call(rbind, test9), do.call(rbind, test10))
+  # join all dataframes into one dataframe
+  prescriptions <- prescriptions %>% 
+    reduce(full_join)
   
   # save the dataframe into the data file
   write_csv(prescriptions, file = here("data", "prescriptions.csv"))
@@ -76,52 +91,63 @@ if (!file.exists(file = here("data", "prescriptions.csv"))) {
 }
 ```
 
-# Look at the 5 year overview of prescriptions of ADHD medications
+### Look at the 5 year overview of prescriptions of ADHD medications
 
-```{r figure 1}
+```{r figure 1, fig.width=8}
 # get a sum of prescribed doses of the 5 types of ADHD medications per month
 overview <- prescriptions %>%
-  mutate(bnf_item_description = word(bnf_item_description, sep = "[ _]"),
+  mutate(bnf_item_description = word(bnf_item_description, sep = "[ _]"), # keep only first word of the whole medication name
          paid_date_month = ym(paid_date_month)) %>%
   group_by(bnf_item_description, paid_date_month) %>% 
-  summarise(paid_quantity = sum(paid_quantity))
+  summarise(paid_quantity = sum(paid_quantity)) %>% 
+  ungroup()
 
 # a graph of the number of prescribed doses of ADHD medication from Jan 2019 to Aug 2024
-overview_normal <- overview %>% 
-  ggplot(aes(x = paid_date_month, y = paid_quantity, colour = bnf_item_description)) +
-  geom_line() +
-  theme_bw() +
-  labs(title = "Number of Prescribed Doses of 5 Types of ADHD Medications from January 2019 to August 2024",
-       x = "Time (Years)",
-       y = "Number of prescribed doses")
+overview_normal <- overview %>%
+  plot_ly(x = ~paid_date_month,
+          y = ~paid_quantity,
+          type = "scatter",
+          mode = "lines",
+          split = ~bnf_item_description,
+          color = ~bnf_item_description,
+          legendgroup = ~bnf_item_description,
+          showlegend = F) %>% 
+  layout(xaxis = list(title = "Date (month and year)"),
+         yaxis = list(title = "Number of prescribed medications"))
 
 # the same graph but on a log scale
 overview_log <- overview %>% 
-  ggplot(aes(x = paid_date_month, y = log(paid_quantity), colour = bnf_item_description)) +
-  geom_line() +
-  theme_bw() +
-  labs(x = "Time (Years)",
-       y = "Log of number of prescribed doses")
+  plot_ly(x = ~paid_date_month,
+          y = ~paid_quantity,
+          type = "scatter",
+          mode = "lines",
+          split = ~bnf_item_description,
+          color = ~bnf_item_description,
+          legendgroup = ~bnf_item_description) %>% 
+  layout(xaxis = list(title = "Date (month and year)"),
+         yaxis = list(title = "Log of number of prescribed medications", type = "log"))
 
-(overview_normal + overview_log) +
-  plot_layout(guides = "collect") & theme(legend.position = 'bottom',
-                                          legend.title = element_blank(),
-                                          plot.title=element_text(size=10),
-                                          legend.text=element_text(size=7.5))
+# join the two graphs and tinker with some label title and legend settings
+subplot(overview_normal, overview_log, shareX = TRUE, titleX = TRUE, titleY = TRUE, margin = 0.05) %>% 
+  layout(title = "Number of Prescribed Doses of 5 Types of ADHD Medications<br>from January 2019 to August 2024",
+         hovermode = "x unified",
+         legend = list(orientation = 'h', y = -0.2, borderwidth = 1, bordercolor = "black", xanchor = "center", x = 0.5))
 ```
 
 The data indicate that Methylphenidate has shown the highest increase in prescriptions over the years. Although Atomoxetine, Dexamfetamine, and Guanfacine have also seen a steady rise, their growth is not as pronounced as that of Methylphenidate. Notably, in May 2023, prescriptions for Atomoxetine and Dexamfetamine declined, coinciding with the introduction of Lisdexamfetamine to the market. This suggests that Lisdexamfetamine replaced Atomoxetine and Dexamfetamine on the market.
 
-# Differences of ADHD prescriptions per capita in Scottish Health Boards in 2019 and 2023
+## Differences of ADHD prescriptions per capita in Scottish Health Boards in 2019 and 2023
 
 To further investigate the increase in ADHD medications in Scotland, I want to look at differences in individual Scottish Health Boards.
 
-## Load data and filter for year 2020 and 2023
+### Load data and filter for year 2020 and 2023
 
 To compare the number of prescribed doses of ADHD medication before and after COVID-19, I will account for population differences across Scottish health boards. For the pre-COVID comparison, I used 2019 population data to reflect the population just before the first lockdown. For the post-COVID period, I selected 2023 as a reference, as the full data for 2024 is not yet available.
 
 ```{r population dataframes}
 # ref: https://www.opendata.nhs.scot/dataset/7f010430-6ce1-4813-b25c-f7f335bdc4dc/resource/27a72cc8-d6d8-430c-8b4f-3109a9ceadb1/download/hb2019_pop_est_14102024.csv
+
+hb_names <- read_csv("https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv")
 
 hb_population <- read_csv(here("data", "hb_population.csv"))
 
@@ -132,13 +158,14 @@ population_2023 <- hb_population %>%
   filter(Year == "2023")
 ```
 
-## Load NSH health boards shapefile
+### Load NSH health boards shapefile
 
 ```{r NHS healthboards}
+# ref: "https://maps.gov.scot/ATOM/shapefiles/SG_NHS_HealthBoards_2019.zip"
 NHS_healthboards <- st_read(here("data", "NHS_healthboards_2019.shp"))
 ```
 
-## Join the prescription dataframe with population file and the shapefile.
+### Join the prescription dataframe with population file and the shapefile.
 
 ```{r joining dataframes}
 year_2019 <- prescriptions %>%
@@ -166,27 +193,170 @@ year_2023 <- prescriptions %>%
   full_join(NHS_healthboards, by = c("hbt" = "HBCode"))
 ```
 
-## Map of ADHD prescriptions per capita in 2019 and 2023
+### Map of ADHD prescriptions per capita in 2019 and 2023
 
 ```{r map of scotland}
 map_data <- full_join(year_2019, year_2023)
 
-map_data %>% 
-  ggplot(aes(fill = ratio)) +
-  geom_sf(aes(geometry = geometry)) +
+map_figure <- map_data %>% 
+  ggplot() +
+  geom_sf(aes(fill = ratio, geometry = geometry, text = paste(HBName, "had a ratio of", format(ratio, digits = 2), "in", year)), lwd = 0.1) +
   scale_fill_distiller(palette = 16, direction = 1) + 
-  theme_bw() +
-  theme(plot.title=element_text(size=11)) +
+  theme_void() +
+  theme(plot.title = element_text(size=11)) +
   facet_wrap(~year) +
   labs(title = "Ratio of Number of Prescribed Doses of ADHD Medication and Health Board Population")
+
+map_figure %>%
+  ggplotly(tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white"), hoveron = "fill")
 ```
 
 Seems like the ratio of population to number of doses of medication is higher in most health boards in Scotland. The only health board that decreased in their number of prescribed doses of ADHD medication is Tayside which went down from 1.02 to 0.904. Grampian has a ratio of 1.33, which is the highest ratio of number of prescribed doses of ADHD medication per person.
 
-## Future plan
+### Future plan
 
 To provide a comprehensive overview, I plan to include a table displaying the annual number of prescribed doses for each of the five ADHD medications, alongside the population of Scotland and the ratio of doses per person. This table will be placed between Figure 1 and Figure 2.
 
 Figure 1 illustrates an increase in ADHD medication prescriptions over time, but it does not account for potential population growth. By incorporating the table, I aim to clarify whether the observed rise in prescriptions is proportionate to, or exceeds, population growth. This additional data will help contextualize the trends and provide a more accurate understanding of the changes in prescription rates.
 
 Afterwards, I would give more insight into Figure 2 and explore more of the data it provides about the different Scottish Health Boards.
+
+### Table
+
+```{r, include=FALSE}
+test_big_overview <- prescriptions %>%
+  mutate(paid_date_month = ym(paid_date_month)) %>%
+  group_by(paid_date_month) %>% 
+  summarise(paid_quantity = sum(paid_quantity))
+
+test_big_overview %>% 
+  ggplot(aes(x = paid_date_month, y = paid_quantity)) +
+  geom_line() +
+  theme_bw() +
+  labs(title = "Number of Prescribed Doses of ADHD Medications from January 2019 to August 2024",
+       x = "Time (Years)",
+       y = "Number of prescribed doses")
+
+library(ggridges)
+test_density <- prescriptions %>% 
+  mutate(paid_date_month = ym(paid_date_month),
+         month = month(paid_date_month, label = TRUE)) %>%
+  group_by(paid_date_month, month) %>%
+  summarise(paid_quantity = sum(paid_quantity)) %>% 
+  ggplot(aes(x = paid_quantity, y = fct_rev(month), group = month, fill = month)) +
+  geom_density_ridges(alpha = 0.5, quantile_lines = TRUE, quantiles = 2) +
+  scale_x_continuous(name = "Number of Prescriptions") +
+  ggtitle("Density plot of number of prescriptions") +
+  theme_bw() +
+  scale_fill_brewer(palette="Set3")
+
+test_density
+
+prescriptions %>% 
+  filter(str_detect(bnf_item_description, "METHYLPHENIDATE")) %>% 
+  mutate(paid_date_month = ym(paid_date_month),
+         month = month(paid_date_month, label = TRUE),
+         num_month = month(paid_date_month),
+         year = year(paid_date_month)) %>%
+  group_by(paid_date_month, month, num_month, year) %>%
+  summarise(paid_quantity = sum(paid_quantity)) %>% 
+  ggplot(aes(x = num_month, y = paid_quantity)) +
+  geom_line() +
+  facet_wrap(~year)
+```
+
+```{r, include=FALSE}
+population_2019_to_2023 <- hb_population %>% 
+  filter(Sex == "All",
+         Year %in% (2019:2023)) %>% 
+  select(HB, Year, AllAges)
+
+test_table <- prescriptions %>%
+  mutate(paid_date_month = year(ym(paid_date_month))) %>% 
+  full_join(population_2019_to_2023, by = c("hbt" = "HB", "paid_date_month" = "Year")) %>% 
+  filter(hbt != "S92000003") %>% 
+  select(bnf_item_description, number_of_paid_items, paid_quantity, paid_date_month, AllAges) %>% 
+  mutate(bnf_item_description = word(bnf_item_description, sep = "[ _]")) %>% 
+  group_by(bnf_item_description, paid_date_month) %>% 
+  summarise(number_of_paid_items = sum(number_of_paid_items),
+            paid_quantity = sum(paid_quantity),
+            AllAges = first(AllAges)) %>% 
+  ungroup()
+
+test_table %>% 
+  gt(rowname_col = "bnf_item_description") %>% 
+  cols_label(bnf_item_description = "Name of Medication",
+             paid_date_month = "Year of prescription",
+             number_of_paid_items = "Number of medications",
+             paid_quantity = "Number of prescribed doses",
+             AllAges = "Population") %>% 
+  tab_header(title = "Number of Prescribed Doses of ADHD Medication from Year 2019 to Year 2024",
+             subtitle = "Data from Open Data NHS Scotland") %>% 
+  cols_align(align = "center", columns = c(paid_date_month, number_of_paid_items, paid_quantity, AllAges))
+```
+
+```{r table}
+population_2023 <- population_2023 %>% 
+  clean_names() %>% 
+  filter(sex == "All") %>% 
+  select(hb, all_ages)
+
+past_year_prescriptions <- prescriptions %>%
+  filter(paid_date_month > 202308 & paid_date_month < 202409) %>% 
+  full_join(population_2023, by = c("hbt" = "hb")) %>% 
+  full_join(hb_names, by = c("hbt" = "HB")) %>% 
+  filter(HBName == "NHS Lothian") %>% 
+  group_by(bnf_item_description, all_ages) %>% 
+  summarise(paid_quantity = sum(paid_quantity),
+            number_of_paid_items = sum(number_of_paid_items)) %>% 
+  mutate(paid_quantity = (paid_quantity / all_ages) * 10000,
+         number_of_paid_items = (number_of_paid_items / all_ages) * 10000,
+         medication_name = word(bnf_item_description, sep = "[ ]"),
+         dose = word(bnf_item_description, start = 2, end = -1)) %>% 
+  select(!all_ages) %>% 
+  ungroup()
+
+past_year_prescriptions %>% 
+  select(medication_name, dose, number_of_paid_items, paid_quantity) %>% 
+  group_by(medication_name) %>% 
+  slice_max(paid_quantity, n = 3) %>%
+  arrange(desc(paid_quantity)) %>%
+  
+  gt() %>% 
+  tab_header(title = "Top 3 Most Prescribed ADHD Medications of Each Type in The Past Year",
+             subtitle = "Data from NHS Lothian") %>% 
+  tab_style(style = cell_text(weight = "bold"),
+            locations = list(cells_title(groups = "title"), cells_row_groups(groups = everything()))) %>%
+  
+  tab_spanner(label = "Rate per 10k population",
+              columns = c(number_of_paid_items, paid_quantity)) %>% 
+  tab_style(style = cell_text(style = "italic"),
+            locations = cells_column_spanners(spanners = everything())) %>% 
+  
+  cols_label(medication_name = "Medication Name",
+             dose = "Dose",
+             number_of_paid_items = "Number of Paid Items",
+             paid_quantity = "Number of Prescriptions") %>% 
+  
+  fmt_number(columns = c(number_of_paid_items, paid_quantity), decimals = 2) %>% 
+  
+  summary_rows(columns = c(number_of_paid_items, paid_quantity), 
+               fns = list("Average" = ~mean(., na.rm = TRUE)),
+               fmt = list(~ fmt_number(., decimals = 2))) %>% 
+  grand_summary_rows(columns = c(number_of_paid_items, paid_quantity), 
+                     fns = list("Overall Average" = ~mean(., na.rm = TRUE)),
+                     fmt = list(~ fmt_number(., decimals = 2))) %>% 
+  
+  opt_row_striping()
+  
+```
+# Conclusion
+
+Here will be a conclusion soon.
+
+# References
+
+Rogers, M.A. and MacLean, J. (2023) ‘ADHD symptoms increased during the COVID-19 pandemic: A meta-analysis’, *Journal of Attention Disorders*, 27(8), pp. 800–811. doi:10.1177/10870547231158750. 
+
+Toplak, M.E., Dockstader, C., Tannock, R. (2006) ‘Temporal information processing in ADHD: Findings to date and New Methods’, *Journal of Neuroscience Methods*, 151(1), pp. 15–29. doi:10.1016/j.jneumeth.2005.09.018.
