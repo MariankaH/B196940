@@ -2,13 +2,15 @@
 title: "Assessment"
 author: "Mary Hronska"
 date: "2024-11-01"
-output: 
+output:
   html_document:
     code_folding: show
     toc: true
     toc_float: true
     number_sections: true
     highlight: tango
+  pdf_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -42,7 +44,7 @@ The overall aim is to uncover trends in ADHD medication prescription in Scotland
 # Report
 ## ADHD medications licensed by NHS
 
-There are 5 ADHD medications that have been licensed for the treatment of ADHD in the UK by NHS. These medications are:
+There are 5 ADHD medications that have been licensed for the treatment of ADHD in the UK by [NHS](https://www.nhs.uk/conditions/attention-deficit-hyperactivity-disorder-adhd/treatment/). These medications are:
 
 * Atomoxetine
 * Dexamfetamine
@@ -77,7 +79,9 @@ if (!file.exists(file = here("data", "prescriptions.csv"))) {
       filter(str_detect(bnf_item_description, "ATOMOXETINE|DEXAMFETAMINE|GUANFACINE|LISDEXAMFETAMINE|METHYLPHENIDATE")) %>% 
       # change the name of the "hbt2014" column into "hbt" in dataframes from the year 2019
       rename(any_of(c("hbt" = "hbt2014"))) %>%
-      select(hbt, gp_practice, bnf_item_description, number_of_paid_items, paid_quantity, paid_date_month)
+      mutate(medication_name = word(bnf_item_description, sep = "[ _]"),
+             dose = word(bnf_item_description, start = 2, end = -1, sep = "[ _]")) %>% 
+      select(hbt, medication_name, dose, number_of_paid_items, paid_quantity, paid_date_month)
   })
 
   # join all dataframes into one dataframe
@@ -96,36 +100,28 @@ if (!file.exists(file = here("data", "prescriptions.csv"))) {
 ```{r figure 1, fig.width=8}
 # get a sum of prescribed doses of the 5 types of ADHD medications per month
 overview <- prescriptions %>%
-  mutate(bnf_item_description = word(bnf_item_description, sep = "[ _]"), # keep only first word of the whole medication name
-         paid_date_month = ym(paid_date_month)) %>%
-  group_by(bnf_item_description, paid_date_month) %>% 
-  summarise(paid_quantity = sum(paid_quantity)) %>% 
-  ungroup()
+  mutate(paid_date_month = ym(paid_date_month)) %>%
+  group_by(medication_name, paid_date_month) %>% 
+  summarise(paid_quantity = sum(paid_quantity))
 
-# a graph of the number of prescribed doses of ADHD medication from Jan 2019 to Aug 2024
-overview_normal <- overview %>%
-  plot_ly(x = ~paid_date_month,
-          y = ~paid_quantity,
-          type = "scatter",
-          mode = "lines",
-          split = ~bnf_item_description,
-          color = ~bnf_item_description,
-          legendgroup = ~bnf_item_description,
-          showlegend = F) %>% 
-  layout(xaxis = list(title = "Date (month and year)"),
-         yaxis = list(title = "Number of prescribed medications"))
+# create a function that creates a line graph with changeable y axis title, y axis type, and visibility of legend
+create_graph <- function(y_title, y_type = NULL, show_legend = FALSE) {
+  overview %>%
+    plot_ly(x = ~paid_date_month,
+            y = ~paid_quantity,
+            type = "scatter",
+            mode = "lines",
+            split = ~medication_name,
+            color = ~medication_name,
+            legendgroup = ~medication_name,
+            showlegend = show_legend) %>%
+    layout(xaxis = list(title = "Date (month and year)"),
+           yaxis = list(title = y_title, type = y_type))
+}
 
-# the same graph but on a log scale
-overview_log <- overview %>% 
-  plot_ly(x = ~paid_date_month,
-          y = ~paid_quantity,
-          type = "scatter",
-          mode = "lines",
-          split = ~bnf_item_description,
-          color = ~bnf_item_description,
-          legendgroup = ~bnf_item_description) %>% 
-  layout(xaxis = list(title = "Date (month and year)"),
-         yaxis = list(title = "Log of number of prescribed medications", type = "log"))
+# create a normal graph and a log graph
+overview_normal <- create_graph("Number of prescribed medications")
+overview_log <- create_graph("Log of number of prescribed medications", "log", TRUE)
 
 # join the two graphs and tinker with some label title and legend settings
 subplot(overview_normal, overview_log, shareX = TRUE, titleX = TRUE, titleY = TRUE, margin = 0.05) %>% 
@@ -138,73 +134,49 @@ The data indicate that Methylphenidate has shown the highest increase in prescri
 
 ## Differences of ADHD prescriptions per capita in Scottish Health Boards in 2019 and 2023
 
-To further investigate the increase in ADHD medications in Scotland, I want to look at differences in individual Scottish Health Boards.
+To further explore the increase in ADHD medication prescriptions in Scotland, I will compare the number of prescribed doses before and after the COVID-19 pandemic. This analysis will also account for population differences across Scottish Health Boards. For the pre-COVID comparison, I will use 2019 population data, representing the year just before the first lockdown. For the post-COVID period, 2023 will be the reference year, as complete data for 2024 is not yet available.
 
-### Load data and filter for year 2020 and 2023
+### Load dataframes with Scottish Health Board names, populations, and shapefile
 
-To compare the number of prescribed doses of ADHD medication before and after COVID-19, I will account for population differences across Scottish health boards. For the pre-COVID comparison, I used 2019 population data to reflect the population just before the first lockdown. For the post-COVID period, I selected 2023 as a reference, as the full data for 2024 is not yet available.
+```{r health board data, results='hide'}
+# ref: https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv
+hb_names <- read_csv(here("data", "hb_names.csv")) %>% 
+  clean_names() %>% 
+  select(hb, hb_name)
 
-```{r population dataframes}
 # ref: https://www.opendata.nhs.scot/dataset/7f010430-6ce1-4813-b25c-f7f335bdc4dc/resource/27a72cc8-d6d8-430c-8b4f-3109a9ceadb1/download/hb2019_pop_est_14102024.csv
+hb_population <- read_csv(here("data", "hb_population.csv")) %>% 
+  clean_names() %>% 
+  filter(sex == "All") %>% 
+  select(year, hb, all_ages)
 
-hb_names <- read_csv("https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv")
-
-hb_population <- read_csv(here("data", "hb_population.csv"))
-
-population_2019 <- hb_population %>% 
-  filter(Year == "2019")
-
-population_2023 <- hb_population %>% 
-  filter(Year == "2023")
-```
-
-### Load NSH health boards shapefile
-
-```{r NHS healthboards}
 # ref: "https://maps.gov.scot/ATOM/shapefiles/SG_NHS_HealthBoards_2019.zip"
 NHS_healthboards <- st_read(here("data", "NHS_healthboards_2019.shp"))
 ```
 
-### Join the prescription dataframe with population file and the shapefile.
-
-```{r joining dataframes}
-year_2019 <- prescriptions %>%
-  filter(str_detect(paid_date_month, "2019")) %>% 
-  group_by(hbt) %>% 
+### Join the prescription dataframe with population file and the shapefile
+```{r}
+map_data <- prescriptions %>% 
+  mutate(paid_date_month = year(ym(paid_date_month))) %>% 
+  full_join(hb_population, by = c("hbt" = "hb", "paid_date_month" = "year")) %>% 
+  filter(paid_date_month %in% c("2019", "2023"),
+         !(hbt %in% c("S92000003", "S08000021", "S08000023"))) %>% 
+  group_by(hbt, all_ages, paid_date_month) %>% 
   summarise(paid_quantity = sum(paid_quantity)) %>% 
-  full_join(population_2019, by = c("hbt" = "HB")) %>% 
-  filter(Sex == "All") %>% 
-  select(c(hbt, paid_quantity, AllAges)) %>% 
-  filter(!is.na(paid_quantity)) %>%
-  mutate(ratio = paid_quantity / AllAges,
-         year = "2019") %>% 
-  full_join(NHS_healthboards, by = c("hbt" = "HBCode"))
-
-year_2023 <- prescriptions %>%
-  filter(str_detect(paid_date_month, "2023")) %>% 
-  group_by(hbt) %>% 
-  summarise(paid_quantity = sum(paid_quantity)) %>% 
-  full_join(population_2023, by = c("hbt" = "HB")) %>% 
-  filter(Sex == "All") %>% 
-  select(c(hbt, paid_quantity, AllAges)) %>% 
-  filter(!is.na(paid_quantity)) %>%
-  mutate(ratio = paid_quantity / AllAges,
-         year = "2023") %>% 
+  mutate(ratio = paid_quantity / all_ages) %>% 
   full_join(NHS_healthboards, by = c("hbt" = "HBCode"))
 ```
 
 ### Map of ADHD prescriptions per capita in 2019 and 2023
 
-```{r map of scotland}
-map_data <- full_join(year_2019, year_2023)
-
+```{r map of scotland TEST}
 map_figure <- map_data %>% 
   ggplot() +
-  geom_sf(aes(fill = ratio, geometry = geometry, text = paste(HBName, "had a ratio of", format(ratio, digits = 2), "in", year)), lwd = 0.1) +
+  geom_sf(aes(fill = ratio, geometry = geometry, text = paste(HBName, "had a ratio of", format(ratio, digits = 2), "in", paid_date_month)), lwd = 0.1) +
   scale_fill_distiller(palette = 16, direction = 1) + 
   theme_void() +
   theme(plot.title = element_text(size=11)) +
-  facet_wrap(~year) +
+  facet_wrap(~paid_date_month) +
   labs(title = "Ratio of Number of Prescribed Doses of ADHD Medication and Health Board Population")
 
 map_figure %>%
@@ -214,107 +186,19 @@ map_figure %>%
 
 Seems like the ratio of population to number of doses of medication is higher in most health boards in Scotland. The only health board that decreased in their number of prescribed doses of ADHD medication is Tayside which went down from 1.02 to 0.904. Grampian has a ratio of 1.33, which is the highest ratio of number of prescribed doses of ADHD medication per person.
 
-### Future plan
-
-To provide a comprehensive overview, I plan to include a table displaying the annual number of prescribed doses for each of the five ADHD medications, alongside the population of Scotland and the ratio of doses per person. This table will be placed between Figure 1 and Figure 2.
-
-Figure 1 illustrates an increase in ADHD medication prescriptions over time, but it does not account for potential population growth. By incorporating the table, I aim to clarify whether the observed rise in prescriptions is proportionate to, or exceeds, population growth. This additional data will help contextualize the trends and provide a more accurate understanding of the changes in prescription rates.
-
-Afterwards, I would give more insight into Figure 2 and explore more of the data it provides about the different Scottish Health Boards.
-
 ### Table
 
-```{r, include=FALSE}
-test_big_overview <- prescriptions %>%
-  mutate(paid_date_month = ym(paid_date_month)) %>%
-  group_by(paid_date_month) %>% 
-  summarise(paid_quantity = sum(paid_quantity))
-
-test_big_overview %>% 
-  ggplot(aes(x = paid_date_month, y = paid_quantity)) +
-  geom_line() +
-  theme_bw() +
-  labs(title = "Number of Prescribed Doses of ADHD Medications from January 2019 to August 2024",
-       x = "Time (Years)",
-       y = "Number of prescribed doses")
-
-library(ggridges)
-test_density <- prescriptions %>% 
-  mutate(paid_date_month = ym(paid_date_month),
-         month = month(paid_date_month, label = TRUE)) %>%
-  group_by(paid_date_month, month) %>%
-  summarise(paid_quantity = sum(paid_quantity)) %>% 
-  ggplot(aes(x = paid_quantity, y = fct_rev(month), group = month, fill = month)) +
-  geom_density_ridges(alpha = 0.5, quantile_lines = TRUE, quantiles = 2) +
-  scale_x_continuous(name = "Number of Prescriptions") +
-  ggtitle("Density plot of number of prescriptions") +
-  theme_bw() +
-  scale_fill_brewer(palette="Set3")
-
-test_density
-
-prescriptions %>% 
-  filter(str_detect(bnf_item_description, "METHYLPHENIDATE")) %>% 
-  mutate(paid_date_month = ym(paid_date_month),
-         month = month(paid_date_month, label = TRUE),
-         num_month = month(paid_date_month),
-         year = year(paid_date_month)) %>%
-  group_by(paid_date_month, month, num_month, year) %>%
-  summarise(paid_quantity = sum(paid_quantity)) %>% 
-  ggplot(aes(x = num_month, y = paid_quantity)) +
-  geom_line() +
-  facet_wrap(~year)
-```
-
-```{r, include=FALSE}
-population_2019_to_2023 <- hb_population %>% 
-  filter(Sex == "All",
-         Year %in% (2019:2023)) %>% 
-  select(HB, Year, AllAges)
-
-test_table <- prescriptions %>%
-  mutate(paid_date_month = year(ym(paid_date_month))) %>% 
-  full_join(population_2019_to_2023, by = c("hbt" = "HB", "paid_date_month" = "Year")) %>% 
-  filter(hbt != "S92000003") %>% 
-  select(bnf_item_description, number_of_paid_items, paid_quantity, paid_date_month, AllAges) %>% 
-  mutate(bnf_item_description = word(bnf_item_description, sep = "[ _]")) %>% 
-  group_by(bnf_item_description, paid_date_month) %>% 
-  summarise(number_of_paid_items = sum(number_of_paid_items),
-            paid_quantity = sum(paid_quantity),
-            AllAges = first(AllAges)) %>% 
-  ungroup()
-
-test_table %>% 
-  gt(rowname_col = "bnf_item_description") %>% 
-  cols_label(bnf_item_description = "Name of Medication",
-             paid_date_month = "Year of prescription",
-             number_of_paid_items = "Number of medications",
-             paid_quantity = "Number of prescribed doses",
-             AllAges = "Population") %>% 
-  tab_header(title = "Number of Prescribed Doses of ADHD Medication from Year 2019 to Year 2024",
-             subtitle = "Data from Open Data NHS Scotland") %>% 
-  cols_align(align = "center", columns = c(paid_date_month, number_of_paid_items, paid_quantity, AllAges))
-```
-
 ```{r table}
-population_2023 <- population_2023 %>% 
-  clean_names() %>% 
-  filter(sex == "All") %>% 
-  select(hb, all_ages)
-
 past_year_prescriptions <- prescriptions %>%
   filter(paid_date_month > 202308 & paid_date_month < 202409) %>% 
-  full_join(population_2023, by = c("hbt" = "hb")) %>% 
-  full_join(hb_names, by = c("hbt" = "HB")) %>% 
-  filter(HBName == "NHS Lothian") %>% 
-  group_by(bnf_item_description, all_ages) %>% 
+  full_join(hb_names, by = c("hbt" = "hb")) %>% 
+  full_join(hb_population %>% filter(year == "2023"), by = c("hbt" = "hb")) %>% 
+  filter(hb_name == "NHS Lothian") %>% 
+  group_by(medication_name, dose, all_ages) %>% 
   summarise(paid_quantity = sum(paid_quantity),
             number_of_paid_items = sum(number_of_paid_items)) %>% 
   mutate(paid_quantity = (paid_quantity / all_ages) * 10000,
-         number_of_paid_items = (number_of_paid_items / all_ages) * 10000,
-         medication_name = word(bnf_item_description, sep = "[ ]"),
-         dose = word(bnf_item_description, start = 2, end = -1)) %>% 
-  select(!all_ages) %>% 
+         number_of_paid_items = (number_of_paid_items / all_ages) * 10000) %>% 
   ungroup()
 
 past_year_prescriptions %>% 
