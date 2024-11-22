@@ -173,7 +173,7 @@ map_data <- prescriptions %>%
   full_join(NHS_healthboards, by = c("hbt" = "hb_code"))
 ```
 
-I excluded the health boards `S92000003`, `S08000021`, and `S08000023` from the dataframe. `S92000003` represents ambulance services and is not relevant to this analysis. Meanwhile, `S08000021` and `S08000023` correspond to the **inactive** Greater Glasgow and Clyde and Lanarkshire health boards, which have been replaced by `S08000031` and `S08000032`, respectively.
+I excluded the health boards `S92000003`, `S08000021`, and `S08000023` from the dataframe. `S92000003` represents ambulance services and is not relevant to this analysis. Meanwhile, `S08000021` and `S08000023` correspond to the **inactive** Greater Glasgow and Clyde and Lanarkshire Health Boards, which have been replaced by `S08000031` and `S08000032`, respectively.
 
 ### Map of ADHD prescriptions per capita in 2019 and 2023
 
@@ -188,13 +188,48 @@ map_figure <- map_data %>%
   facet_wrap(~paid_date_month) +
   labs(title = "Maps Showing Prescribed Doses of ADHD Medications per Health Board Populations")
 
-# display the figure as an interactive map using ggplotly function from plotly library
+# display the figure as an interactive map using ggplotly function from plotly package
 map_figure %>%
   ggplotly(tooltip = "text") %>%
   style(hoverlabel = list(bgcolor = "white"), hoveron = "fill")
 ```
 
-The ratio of prescribed ADHD medication doses to population has increased in most health boards across Scotland. The only exception is Tayside, where the ratio decreased from 1.02 to 0.904. Grampian currently has the highest ratio, with 1.33 doses prescribed per person, indicating a significant concentration of ADHD medication prescriptions in this region.
+The maps represent the ratio of prescribed doses of ADHD medications relative to the population of each Health Board in 2019 and 2023. By comparing these two maps, we can identify any increases in the ratio, which would indicate a rise in the number of prescribed doses. The ratio is calculated as:
+
+\begin{align*}
+\text{ratio} & = \frac{\text{number of prescribed doses in health board}}{\text{population of health board}} \\
+\end{align*}
+
+The ratio of prescribed ADHD medication doses to population has increased in most Health Boards across Scotland. The only exception is Tayside, where the ratio decreased from 1.02 to 0.904. Grampian currently has the highest ratio, with 1.33 doses prescribed per person, indicating a significant concentration of ADHD medication prescriptions in this region.
+
+A limitation of this figure is that it does not clearly illustrate the magnitude of change across individual Health Boards. While it shows that prescriptions increased overall, it does not indicate whether the increase was substantial or minimal for each Health Board. Additionally, it highlights which Health Board has the highest or lowest ratio of doses per person but does not reveal which experienced the largest or smallest increase over time without manual calculations.
+
+### A bar plot of differences between the ratios of prescribed doses and populations
+
+To account for changes in the ratios over time, I calculated the difference for each Health Board by subtracting the 2019 ratios from the 2023 ratios. This approach highlights the magnitude of change in prescribed doses relative to population across the two time periods.
+
+```{r}
+difference_plot <- map_data %>%
+  ungroup() %>%
+  # create columns ratio_2019 and ratio_2023, and add ratio values to columns according to the year
+  pivot_wider(names_from = paid_date_month, values_from = ratio, 
+              names_prefix = "ratio_") %>%
+  group_by(hb_name) %>% 
+  summarize(ratio_2019 = first(na.omit(ratio_2019)),
+            ratio_2023 = first(na.omit(ratio_2023))) %>% 
+  mutate(differences = ratio_2023 - ratio_2019) %>% 
+  ggplot(aes(x = hb_name, y = differences, text = paste(hb_name, "has a difference of", format(differences, digits = 2)))) +
+  geom_col() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Bar Plot Showing Differences in Ratio of Prescribed Doses of ADHD Medications per Health Board Populations") +
+  xlab("Health Board Names") +
+  ylab("Differences")
+
+# display an interactive bar plot using ggplotly function from plotly package
+difference_plot %>% 
+  ggplotly(tooltip = "text")
+```
 
 ### Table
 
