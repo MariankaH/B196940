@@ -26,7 +26,7 @@ text-align: justify}
 
 Attention Deficit Hyperactivity Disorder (ADHD), known for low attention span and hyperactivity, has been a centre of attention in research and public discourse for a long time (Toplak *et al.*, 2006). Following the COVID-19 pandemic, there was a notable global rise in ADHD symptoms (Rogers *et al.*, 2023). It is thought that the pandemic lockdowns, which forced people to study and work from home, had negatively affected their attention span.
 
-It this report, I will analyse trends in ADHD medication prescriptions in Scotland by comparing data from the pre-COVID-19 period and post-COVID-19 period. The focus is on the number of prescribed doses, which will allow us to see changes over this period. The aim of this report is to answer the question: **Has there been an increase in ADHD medication prescription that could reflect an increase in attention-related challenges following pandemic lockdowns?**
+It this report, I will analyse trends in ADHD medication prescriptions in Scotland by comparing data from the pre-COVID-19 period and post-COVID-19 period. The focus is on the number of prescribed doses, which will allow us to see changes over this period. The aim of this report is to answer the question: **Has there been an increase in ADHD medication prescription in Scotland that could reflect an increase in attention-related challenges following pandemic lockdowns?**
 
 # Aims
 
@@ -165,14 +165,19 @@ NHS_healthboards <- st_read(here("data", "NHS_healthboards_2019.shp")) %>%
 ```
 
 ### Join the prescription dataframe with population file and the shapefile
+
 ```{r}
 map_data <- prescriptions %>% 
+  # change paid_date_month string into a number relating to the year a prescription was made
   mutate(paid_date_month = year(ym(paid_date_month))) %>% 
-  full_join(hb_population, by = c("hbt" = "hb", "paid_date_month" = "year")) %>% 
+  full_join(hb_population, by = c("hbt" = "hb", "paid_date_month" = "year")) %>%
+  # filter for data from 2019 and 2023 and filter out unwanted health boards
   filter(paid_date_month %in% c("2019", "2023"),
          !(hbt %in% c("S92000003", "S08000021", "S08000023"))) %>% 
+  # get a sum of prescribed doses of ADHD medications for each health board per year
   group_by(hbt, all_ages, paid_date_month) %>% 
   summarise(paid_quantity = sum(paid_quantity)) %>% 
+  # calculate the ratio of prescribed doses per population
   mutate(ratio = paid_quantity / all_ages) %>% 
   full_join(NHS_healthboards, by = c("hbt" = "hb_code"))
 ```
@@ -186,6 +191,7 @@ I excluded the health boards `S92000003`, `S08000021`, and `S08000023` from the 
 map_figure <- map_data %>% 
   ggplot(aes(fill = ratio, geometry = geometry, text = paste(hb_name, "had a ratio of", format(ratio, digits = 2), "in", paid_date_month))) +
   geom_sf(lwd = 0.1) +
+  # set a colour palette
   scale_fill_distiller(palette = 16, direction = 1) + 
   facet_wrap(~paid_date_month) +
   labs(title = "Prescribed Doses of ADHD Medications per Health Board Populations") +
@@ -204,7 +210,7 @@ The maps represent the ratio of prescribed doses of ADHD medications relative to
 \text{ratio} & = \frac{\text{number of prescribed doses in health board}}{\text{population of health board}} \\
 \end{align*}
 
-The ratio of prescribed ADHD medication doses to population has increased in most Health Boards across Scotland. The only exception is Tayside, where the ratio decreased from 1.02 to 0.904. Grampian currently has the highest ratio, with 1.33 doses prescribed per person, indicating a significant concentration of ADHD medication prescriptions in this region.
+The ratio of prescribed ADHD medication doses to population has increased in most Health Boards across Scotland. The only exception is Tayside, where the ratio decreased from $1.02$ to $0.904$. Grampian currently has the highest ratio, with $1.33$ doses prescribed per person, indicating a significant concentration of ADHD medication prescriptions in this region.
 
 A limitation of this figure is that it does not clearly illustrate the magnitude of change across individual Health Boards. While it shows that prescriptions increased overall, it does not indicate whether the increase was substantial or minimal for each Health Board. Additionally, it highlights which Health Board has the highest or lowest ratio of doses per person but does not reveal which experienced the largest or smallest increase over time without manual calculations.
 
@@ -218,16 +224,17 @@ change_plot <- map_data %>%
   # create columns ratio_2019 and ratio_2023, and add ratio values to columns according to the year
   pivot_wider(names_from = paid_date_month, values_from = ratio, 
               names_prefix = "ratio_") %>%
+  # aggregate ratio_2019 and ratio_2023 to get the first non-NA value for each health board
   group_by(hb_name) %>% 
   summarize(ratio_2019 = first(na.omit(ratio_2019)),
             ratio_2023 = first(na.omit(ratio_2023))) %>% 
+  # calculate change of ratios of prescribed doses per person
   mutate(change = ratio_2023 / ratio_2019) %>% 
+  # create a bar plot with a logarithmic scale
   ggplot(aes(x = reorder(hb_name, change), y = change, text = paste(hb_name, " has a ", format(change, digits = 2, trim = TRUE), "-fold change", sep = ""))) +
   geom_col() +
   scale_y_log10() +
-  labs(title = "Change in Ratio of Prescribed Doses of ADHD Medications per Health Board Population") +
-  xlab("Health Board Names") +
-  ylab("Differences") +
+  labs(title = "Change in Ratio of Prescribed Doses of ADHD Medications per Health Board Population", x = "Health Board Names", y = "Change") +
   theme_bw() +
   theme(plot.title = element_text(size = 10.5, face = "bold", color = "#483D8B", hjust = 0.5),
         axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
@@ -253,7 +260,9 @@ past_year_prescriptions <- prescriptions %>%
   filter(paid_date_month > 202308 & paid_date_month < 202409) %>% 
   full_join(hb_names, by = c("hbt" = "hb")) %>% 
   full_join(hb_population %>% filter(year == "2023"), by = c("hbt" = "hb")) %>% 
+  # filter for data from NHS Lothian
   filter(hb_name == "NHS Lothian") %>% 
+  # get a sum of paid items and prescribed doses for each ADHD medication and dosage
   group_by(medication_name, dose, all_ages) %>% 
   summarise(paid_quantity = sum(paid_quantity),
             number_of_paid_items = sum(number_of_paid_items)) %>% 
@@ -262,33 +271,38 @@ past_year_prescriptions <- prescriptions %>%
          number_of_paid_items = (number_of_paid_items / all_ages) * 10000) %>% 
   ungroup()
 
-# create a gt table
 past_year_prescriptions %>% 
   select(medication_name, dose, number_of_paid_items, paid_quantity) %>% 
-  group_by(medication_name) %>% 
   # get top three most prescribed dosages of each type of ADHD medication
+  group_by(medication_name) %>% 
   slice_max(paid_quantity, n = 3) %>%
   arrange(desc(paid_quantity)) %>%
+  # create table using gt package
   gt() %>% 
+  # set text and style of title and subtitle
   tab_header(title = "Top 3 Most Prescribed ADHD Medications of Each Type in The Past Year",
              subtitle = "Data from NHS Lothian") %>% 
   tab_style(style = cell_text(weight = "bold", color = "#483D8B"),
             locations = list(cells_title(groups = "title"), cells_row_groups(groups = everything()))) %>%
+  # set text and style for spanner column label
   tab_spanner(label = "Rate per 10k population",
               columns = c(number_of_paid_items, paid_quantity)) %>% 
   tab_style(style = cell_text(style = "italic"),
             locations = cells_column_spanners(spanners = everything())) %>% 
-  cols_label(medication_name = "Medication Name",
-             dose = "Dose",
+  # set names for columns displayed in table
+  cols_label(dose = "Dose",
              number_of_paid_items = "Number of Paid Items",
              paid_quantity = "Number of Prescriptions") %>% 
-  fmt_number(columns = c(number_of_paid_items, paid_quantity), decimals = 2) %>% 
+  # format numbers to have 2 decimal places
+  fmt_number(columns = c(number_of_paid_items, paid_quantity), decimals = 2) %>%
+  # add average and overall average in table
   summary_rows(columns = c(number_of_paid_items, paid_quantity), 
                fns = list("Average" = ~mean(., na.rm = TRUE)),
                fmt = list(~ fmt_number(., decimals = 2))) %>% 
   grand_summary_rows(columns = c(number_of_paid_items, paid_quantity), 
                      fns = list("Overall Average" = ~mean(., na.rm = TRUE)),
                      fmt = list(~ fmt_number(., decimals = 2))) %>% 
+  # add stripes to rows for better readability
   opt_row_striping()
 ```
 
