@@ -35,10 +35,13 @@ The overall aim is to uncover trends in ADHD medication prescription in Scotland
 1. An overview of ADHD medication prescriptions from January 2019 to August 2024
     + Is there an **increasing trend** in ADHD medication prescription?
     + Which type of ADHD medication is the **most common**?
-2. A map of overall prescriptions in the year 2019 (pre-COVID-19 lockdowns) and the year 2023 (post-COVID-19 lockdowns).
+2. A map of prescriptions across Scottish Health Boards in the year 2019 (pre-COVID-19 lockdowns) and the year 2023 (post-COVID-19 lockdowns).
+    + What is the trend of ADHD medication prescription across the **different regions of Scotland**?
+    + Which region of Scotland has the **highest** ratio of doses per person in ADHD medication prescription?
+3. A bar plot of differences in prescriptions between year 2019 and 2023 across Scottish Health Boards.
     + What is the trend of ADHD medication prescription between the **different regions of Scotland**?
-    + Which regions of Scotland saw the **highest increase** in ADHD medication prescription?
-3. A table of most prescribed ADHD medications in the past year in Lothian area.
+    + Which region of Scotland saw the **highest increase** in ADHD medication prescription?
+4. A table of most prescribed ADHD medications in the past year in Lothian area.
     + Which type and what dosage of ADHD medication is the **most common now**?
 
 # Report
@@ -126,7 +129,8 @@ overview_log <- create_graph("Log of prescribed medication doses", "log", TRUE)
 
 # join the two graphs using subplot function from plotly
 subplot(overview_normal, overview_log, shareX = TRUE, titleX = TRUE, titleY = TRUE, margin = 0.05) %>% 
-  layout(title = "Number of Prescribed Doses of 5 Types of ADHD Medications<br>from January 2019 to August 2024",
+  layout(title = list(text = "<b>Number of Prescribed Doses of 5 Types of ADHD Medications from January 2019 to August 2024</b>",
+                      font = list(color = "#483D8B", size = 14)),
          hovermode = "x unified",
          legend = list(orientation = 'h', y = -0.2, borderwidth = 1, bordercolor = "black", xanchor = "center", x = 0.5))
 ```
@@ -183,10 +187,10 @@ map_figure <- map_data %>%
   ggplot(aes(fill = ratio, geometry = geometry, text = paste(hb_name, "had a ratio of", format(ratio, digits = 2), "in", paid_date_month))) +
   geom_sf(lwd = 0.1) +
   scale_fill_distiller(palette = 16, direction = 1) + 
-  theme_void() +
-  theme(plot.title = element_text(size=11)) +
   facet_wrap(~paid_date_month) +
-  labs(title = "Maps Showing Prescribed Doses of ADHD Medications per Health Board Populations")
+  labs(title = "Prescribed Doses of ADHD Medications per Health Board Populations") +
+  theme_void() +
+  theme(plot.title = element_text(size=11, face = "bold", color = "#483D8B"))
 
 # display the figure as an interactive map using ggplotly function from plotly package
 map_figure %>%
@@ -206,10 +210,10 @@ A limitation of this figure is that it does not clearly illustrate the magnitude
 
 ### A bar plot of differences between the ratios of prescribed doses and populations
 
-To account for changes in the ratios over time, I calculated the difference for each Health Board by subtracting the 2019 ratios from the 2023 ratios. This approach highlights the magnitude of change in prescribed doses relative to population across the two time periods.
+To account for changes in the ratios over time, I calculated a change for each Health Board by dividing the 2023 ratios by the 2019 ratios. This approach highlights the magnitude of change in prescribed doses relative to population between the two time periods.
 
-```{r}
-difference_plot <- map_data %>%
+```{r bar plot, fig.width=8}
+change_plot <- map_data %>%
   ungroup() %>%
   # create columns ratio_2019 and ratio_2023, and add ratio values to columns according to the year
   pivot_wider(names_from = paid_date_month, values_from = ratio, 
@@ -217,26 +221,35 @@ difference_plot <- map_data %>%
   group_by(hb_name) %>% 
   summarize(ratio_2019 = first(na.omit(ratio_2019)),
             ratio_2023 = first(na.omit(ratio_2023))) %>% 
-  mutate(differences = ratio_2023 - ratio_2019) %>% 
-  ggplot(aes(x = hb_name, y = differences, text = paste(hb_name, "has a difference of", format(differences, digits = 2)))) +
+  mutate(change = ratio_2023 / ratio_2019) %>% 
+  ggplot(aes(x = reorder(hb_name, change), y = change, text = paste(hb_name, " has a ", format(change, digits = 2, trim = TRUE), "-fold change", sep = ""))) +
   geom_col() +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  labs(title = "Bar Plot Showing Differences in Ratio of Prescribed Doses of ADHD Medications per Health Board Populations") +
+  scale_y_log10() +
+  labs(title = "Change in Ratio of Prescribed Doses of ADHD Medications per Health Board Population") +
   xlab("Health Board Names") +
-  ylab("Differences")
+  ylab("Differences") +
+  theme_bw() +
+  theme(plot.title = element_text(size = 10.5, face = "bold", color = "#483D8B", hjust = 0.5),
+        axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
 
 # display an interactive bar plot using ggplotly function from plotly package
-difference_plot %>% 
+change_plot %>% 
   ggplotly(tooltip = "text")
 ```
 
-### Table
+The bar plot illustrates the change in the ratio of prescribed doses per person between 2019 and 2023 for each Health Board, displayed on a logarithmic scale. This scaling was chosen to accommodate the wide variation in changes, with the Western Isles showing a significant increase, while Tayside and Orkney experienced much smaller changes, making differences harder to discern on a linear scale.
+
+As noted earlier, all Health Boards experienced an increase in prescribed doses per person, except for Tayside. The Western Isles, in particular, saw a remarkable rise, with the 2023 ratio nearly 13 times higher than in 2019. This dramatic increase is noteworthy given its small population of approximately 26,000 residents.
+
+## ADHD medication prescriptions in NHS Lothian area
 
 The next step will focus on a detailed analysis of NHS Lothian, as I live in Edinburgh and have a particular interest in this Health Board. I plan to examine the data more closely to determine which of the five ADHD medications is the most commonly prescribed in this region. Additionally, I will analyze the data to identify the most frequently prescribed dosages for each medication, providing a deeper understanding of prescription trends within NHS Lothian.
 
+### A table of most prescribed ADHD medications from September 2023 to August 2024
+
 ```{r table}
 past_year_prescriptions <- prescriptions %>%
+  # filter for data from September 2023 to August 2024
   filter(paid_date_month > 202308 & paid_date_month < 202409) %>% 
   full_join(hb_names, by = c("hbt" = "hb")) %>% 
   full_join(hb_population %>% filter(year == "2023"), by = c("hbt" = "hb")) %>% 
@@ -244,44 +257,44 @@ past_year_prescriptions <- prescriptions %>%
   group_by(medication_name, dose, all_ages) %>% 
   summarise(paid_quantity = sum(paid_quantity),
             number_of_paid_items = sum(number_of_paid_items)) %>% 
+  # calculate number of prescribed doses per 10,000 people
   mutate(paid_quantity = (paid_quantity / all_ages) * 10000,
          number_of_paid_items = (number_of_paid_items / all_ages) * 10000) %>% 
   ungroup()
 
+# create a gt table
 past_year_prescriptions %>% 
   select(medication_name, dose, number_of_paid_items, paid_quantity) %>% 
   group_by(medication_name) %>% 
+  # get top three most prescribed dosages of each type of ADHD medication
   slice_max(paid_quantity, n = 3) %>%
   arrange(desc(paid_quantity)) %>%
-  
   gt() %>% 
   tab_header(title = "Top 3 Most Prescribed ADHD Medications of Each Type in The Past Year",
              subtitle = "Data from NHS Lothian") %>% 
-  tab_style(style = cell_text(weight = "bold"),
+  tab_style(style = cell_text(weight = "bold", color = "#483D8B"),
             locations = list(cells_title(groups = "title"), cells_row_groups(groups = everything()))) %>%
-  
   tab_spanner(label = "Rate per 10k population",
               columns = c(number_of_paid_items, paid_quantity)) %>% 
   tab_style(style = cell_text(style = "italic"),
             locations = cells_column_spanners(spanners = everything())) %>% 
-  
   cols_label(medication_name = "Medication Name",
              dose = "Dose",
              number_of_paid_items = "Number of Paid Items",
              paid_quantity = "Number of Prescriptions") %>% 
-  
   fmt_number(columns = c(number_of_paid_items, paid_quantity), decimals = 2) %>% 
-  
   summary_rows(columns = c(number_of_paid_items, paid_quantity), 
                fns = list("Average" = ~mean(., na.rm = TRUE)),
                fmt = list(~ fmt_number(., decimals = 2))) %>% 
   grand_summary_rows(columns = c(number_of_paid_items, paid_quantity), 
                      fns = list("Overall Average" = ~mean(., na.rm = TRUE)),
                      fmt = list(~ fmt_number(., decimals = 2))) %>% 
-  
   opt_row_striping()
-  
 ```
+
+The table shows the three most commonly prescribed dosages for each ADHD medication. The medications are listed in descending order based on total prescriptions per 10k population, with Methylphenidate being the most frequently prescribed. Its most common dosage is 10 mg tablets. In contrast, Guanfacine is the least prescribed ADHD medication, with only two available dosages, which is why it has only 2 entries in the table.
+
+Most of the prescribed medications are in tablet or capsule form. However, Dexamfetamine stands out, as its top three prescribed dosages include oral solution and oral liquid options in addition to tablets.
 
 # Conclusion
 
