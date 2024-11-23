@@ -234,7 +234,7 @@ change_plot <- map_data %>%
   ggplot(aes(x = reorder(hb_name, change), y = change, text = paste(hb_name, " has a ", format(change, digits = 2, trim = TRUE), "-fold change", sep = ""))) +
   geom_col() +
   scale_y_log10() +
-  labs(title = "Change in Ratio of Prescribed Doses of ADHD Medications per Health Board Population", x = "Health Board Names", y = "Change") +
+  labs(title = "Change in Ratio of Prescribed Doses of ADHD Medications per Health Board Population", x = "Health Board Names", y = "Change in ratio between year 2019 and 2023") +
   theme_bw() +
   theme(plot.title = element_text(size = 10.5, face = "bold", color = "#483D8B", hjust = 0.5),
         axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
@@ -312,9 +312,17 @@ Most of the prescribed medications are in tablet or capsule form. However, Dexam
 
 # Conclusion
 
-Here will be a conclusion soon.
+This report demonstrated a consistent increase in the overall prescription of ADHD medication doses in Scotland between January 2019 and August 2024. When considering the number of doses per person in each Health Board, all except Tayside showed an increase between 2019 and 2023. The Western Isles had the most significant change, with a nearly 13-fold increase, followed by the Shetlands with an almost 3-fold increase—a striking difference between the largest and second-largest changes. Additionally, the most commonly prescribed dosages of ADHD medications in the Lothian area were examined, as this region is of personal interest due to me living Edinburgh. The most prescribed medication was Methylphenidate and the least prescribed was Dexamfetamine.
+
+The answer to the research question is complex. While there was a clear increase in prescribed doses per person between the pre- and post-COVID-19 lockdown periods, it is difficult to attribute this trend solely to the pandemic. The increase may represent a continuation of a pre-existing upward trend, although the lockdowns might have accelerated this growth. A more comprehensive analysis comparing the rate of increase between earlier periods (e.g., 2015 to 2019) and recent years (2019 to 2023) would help clarify this hypothesis. However, such an analysis would require processing approximately 120 datasets, which presents logistical challenges.
+
+It is also important to note that ADHD medication prescription trends do not necessarily reflect the true prevalence of ADHD symptoms in Scotland. Many individuals diagnosed with ADHD do not receive medication, and others remain undiagnosed due to long waiting lists for assessments. For instance, the average waiting time for an ADHD diagnosis in Edinburgh is currently 23.5 months, according to the [Lothian NHS Board](https://org.nhslothian.scot/foi/wp-content/uploads/sites/22/2024/06/8722.pdf). Future research could expand this analysis by exploring additional factors influencing ADHD diagnosis and treatment, providing a deeper understanding of how the pandemic may have impacted ADHD symptoms and healthcare responses in Scotland.
 
 # References
+
+Lothian NHS Board. (2024) *Freedom of Information - ADHD.* Available at: https://org.nhslothian.scot/foi/wp-content/uploads/sites/22/2024/06/8722.pdf
+
+NHS. (2021) *Attention Deficit Hyperactivity Disorder (ADHD) - Treatment - NHS.* Available at: https://www.nhs.uk/conditions/attention-deficit-hyperactivity-disorder-adhd/treatment/
 
 Rogers, M.A. and MacLean, J. (2023) ‘ADHD symptoms increased during the COVID-19 pandemic: A meta-analysis’, *Journal of Attention Disorders*, 27(8), pp. 800–811. doi:10.1177/10870547231158750. 
 
