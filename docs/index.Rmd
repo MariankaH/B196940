@@ -59,7 +59,7 @@ There are five medications that have been [licensed by NHS](https://www.nhs.uk/c
 
 ```{r packages}
 # load packages using shelf function from librarian package
-librarian::shelf(tidyverse, janitor, sf, here, kableExtra, gt, patchwork, rjson, plotly)
+librarian::shelf(tidyverse, janitor, sf, here, gt, patchwork, rjson, plotly)
 ```
 
 ### Load data and filter for ADHD medications
@@ -80,7 +80,7 @@ if (!file.exists(file = here("data", "prescriptions.csv"))) {
       clean_names() %>% 
       # filter for the five types of medications licensed by NHS for the treatment of ADHD
       filter(str_detect(bnf_item_description, "ATOMOXETINE|DEXAMFETAMINE|GUANFACINE|LISDEXAMFETAMINE|METHYLPHENIDATE")) %>% 
-      # change the name of the "hbt2014" column into "hbt" in dataframes from the year 2019
+      # change the name of the "hbt2014" column into "hbt" in dataframes from the year 2019 for easier dataframe joining
       rename(any_of(c("hbt" = "hbt2014"))) %>%
       # separate bnf_item_description string into the name of medication and its dosage
       mutate(medication_name = word(bnf_item_description, sep = "[ _]"),
@@ -99,18 +99,20 @@ if (!file.exists(file = here("data", "prescriptions.csv"))) {
 }
 ```
 
-### Look at the 5 year overview of prescriptions of ADHD medications
+### Overview of prescriptions of ADHD medications
+
+Data is shown from Janurary 2019, which is the year just before COVID-19 pandemic to August 2024, which is the most recent downloadable dataset of prescriptions in Scotland.
 
 ```{r figure 1, fig.width=8}
 # create a function that creates a line graph with changeable y axis title, y axis type, and visibility of legend
 create_graph <- function(y_title, y_type = NULL, show_legend = FALSE) {
   x <- prescriptions %>%
-    # change paid_date_month string into date
+    # change paid_date_month string into date using lubridate package
     mutate(paid_date_month = ym(paid_date_month)) %>%
     # get a sum of prescribed doses of the 5 types of ADHD medications per month
     group_by(medication_name, paid_date_month) %>% 
     summarise(paid_quantity = sum(paid_quantity)) %>%
-    # make an interactive plot using plotly library
+    # make an interactive plot using plotly package
     plot_ly(x = ~paid_date_month,
             y = ~paid_quantity,
             type = "scatter",
@@ -127,7 +129,7 @@ create_graph <- function(y_title, y_type = NULL, show_legend = FALSE) {
 overview_normal <- create_graph("Prescribed medication doses")
 overview_log <- create_graph("Log of prescribed medication doses", "log", TRUE)
 
-# join the two graphs using subplot function from plotly
+# join the two graphs using subplot function from plotly package
 subplot(overview_normal, overview_log, shareX = TRUE, titleX = TRUE, titleY = TRUE, margin = 0.05) %>% 
   layout(title = list(text = "<b>Number of Prescribed Doses of 5 Types of ADHD Medications from January 2019 to August 2024</b>",
                       font = list(color = "#483D8B", size = 14)),
@@ -210,7 +212,7 @@ The maps represent the ratio of prescribed doses of ADHD medications relative to
 \text{ratio} & = \frac{\text{number of prescribed doses in health board}}{\text{population of health board}} \\
 \end{align*}
 
-The ratio of prescribed ADHD medication doses to population has increased in most Health Boards across Scotland. The only exception is Tayside, where the ratio decreased from $1.02$ to $0.904$. Grampian currently has the highest ratio, with $1.33$ doses prescribed per person, indicating a significant concentration of ADHD medication prescriptions in this region.
+The ratio of prescribed ADHD medication doses to population has increased in most Health Boards across Scotland. The only exception is Tayside, where the ratio decreased from 1.02 to 0.904. Grampian currently has the highest ratio, with 1.33 doses prescribed per person, indicating a significant concentration of ADHD medication prescriptions in this region.
 
 A limitation of this figure is that it does not clearly illustrate the magnitude of change across individual Health Boards. While it shows that prescriptions increased overall, it does not indicate whether the increase was substantial or minimal for each Health Board. Additionally, it highlights which Health Board has the highest or lowest ratio of doses per person but does not reveal which experienced the largest or smallest increase over time without manual calculations.
 
