@@ -1,16 +1,15 @@
 ---
 title: "Assessment"
 author: "Mary Hronska"
-date: "2024-11-01"
+date: "2024-11-25"
 output:
   html_document:
+    theme: spacelab
     code_folding: show
     toc: true
     toc_float: true
     number_sections: true
     highlight: tango
-  pdf_document:
-    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -28,7 +27,7 @@ Attention Deficit Hyperactivity Disorder (ADHD), known for low attention span an
 
 It this report, I will analyse trends in ADHD medication prescriptions in Scotland by comparing data from the pre-COVID-19 period and post-COVID-19 period. The focus is on the number of prescribed doses, which will allow us to see changes over this period. The aim of this report is to answer the question: **Has there been an increase in ADHD medication prescription in Scotland that could reflect an increase in attention-related challenges following pandemic lockdowns?**
 
-# Aims
+# Report
 
 The overall aim is to uncover trends in ADHD medication prescription in Scotland pre- and post-COVID-19 lockdowns. The report will show:
 
@@ -44,25 +43,22 @@ The overall aim is to uncover trends in ADHD medication prescription in Scotland
 4. A table of most prescribed ADHD medications in the past year in Lothian area.
     + Which type and what dosage of ADHD medication is the **most common now**?
 
-# Report
-## ADHD medications licensed by NHS
-
-There are five medications that have been [licensed by NHS](https://www.nhs.uk/conditions/attention-deficit-hyperactivity-disorder-adhd/treatment/) for the treatment of ADHD in the UK. These medications are:
-
-* Atomoxetine
-* Dexamfetamine
-* Guangacine
-* Lisdexamfetamine
-* Methylphenidate
-
-### Load packages
+First I load the packages I will use to analyse the data.
 
 ```{r packages}
 # load packages using shelf function from librarian package
 librarian::shelf(tidyverse, janitor, sf, here, gt, patchwork, rjson, plotly)
 ```
 
-### Load data and filter for ADHD medications
+## ADHD medications licensed by NHS
+
+There are five medications that have been [licensed by NHS](https://www.nhs.uk/conditions/attention-deficit-hyperactivity-disorder-adhd/treatment/) for the treatment of ADHD in the UK. I will load the datasets and filter for the five medications, which are:
+
+* Atomoxetine
+* Dexamfetamine
+* Guangacine
+* Lisdexamfetamine
+* Methylphenidate
 
 ```{r 5 years dataframe}
 # if the file "prescriptions.csv" does not exist in the data folder, create it and save it into the data folder
@@ -80,7 +76,7 @@ if (!file.exists(file = here("data", "prescriptions.csv"))) {
       clean_names() %>% 
       # filter for the five types of medications licensed by NHS for the treatment of ADHD
       filter(str_detect(bnf_item_description, "ATOMOXETINE|DEXAMFETAMINE|GUANFACINE|LISDEXAMFETAMINE|METHYLPHENIDATE")) %>% 
-      # change the name of the "hbt2014" column into "hbt" in dataframes from the year 2019 for easier dataframe joining
+      # change the name of the "hbt2014" column into "hbt" in dataframes from the year 2019 for standardisation
       rename(any_of(c("hbt" = "hbt2014"))) %>%
       # separate bnf_item_description string into the name of medication and its dosage
       mutate(medication_name = word(bnf_item_description, sep = "[ _]"),
@@ -106,7 +102,7 @@ Data is shown from Janurary 2019, which is the year just before COVID-19 pandemi
 ```{r figure 1, fig.width=8}
 # create a function that creates a line graph with changeable y axis title, y axis type, and visibility of legend
 create_graph <- function(y_title, y_type = NULL, show_legend = FALSE) {
-  x <- prescriptions %>%
+  graph <- prescriptions %>%
     # change paid_date_month string into date using lubridate package
     mutate(paid_date_month = ym(paid_date_month)) %>%
     # get a sum of prescribed doses of the 5 types of ADHD medications per month
@@ -127,19 +123,19 @@ create_graph <- function(y_title, y_type = NULL, show_legend = FALSE) {
 
 # create a normal graph and a log graph
 overview_normal <- create_graph("Prescribed medication doses")
-overview_log <- create_graph("Log of prescribed medication doses", "log", TRUE)
+overview_log <- create_graph("Prescribed medication doses (log scale)", "log", TRUE)
 
 # join the two graphs using subplot function from plotly package
 subplot(overview_normal, overview_log, shareX = TRUE, titleX = TRUE, titleY = TRUE, margin = 0.05) %>% 
   layout(title = list(text = "<b>Number of Prescribed Doses of 5 Types of ADHD Medications from January 2019 to August 2024</b>",
-                      font = list(color = "#483D8B", size = 14)),
+                      font = list(color = "#446e9b", size = 14)),
          hovermode = "x unified",
          legend = list(orientation = 'h', y = -0.2, borderwidth = 1, bordercolor = "black", xanchor = "center", x = 0.5))
 ```
 
-The first graph shows the number of prescribed doses of each of the five ADHD medications. As Methylphenidate is clearly the most popular ADHD medication and Atomoxetine and Dexamfetamine the least popular medications, the difference makes it difficult to discern trends among the less common medication. The second graph uses a logarithmic scale for the number of doses, which enhances visibility of smaller changes within each medication. This adjustment allows clearer identification of trends that were not apparent in the first graph.
+The first graph shows the number of prescribed doses of each of the five ADHD medications. As Methylphenidate is clearly the most popular ADHD medication and Guanfacine and Lisdexamfetamine the least popular medications, the difference makes it difficult to discern trends among the less common medication. The second graph uses a logarithmic scale for the number of doses, which enhances visibility of smaller changes within each medication. This adjustment allows clearer identification of trends that were not apparent in the first graph.
 
-The data indicate that Methylphenidate has shown the highest increase in prescriptions over the years. Although Atomoxetine, Dexamfetamine, and Guanfacine have also seen a steady rise, their growth is not as pronounced as that of Methylphenidate. Notably, in May 2023, prescriptions for Atomoxetine and Dexamfetamine declined, coinciding with the introduction of Lisdexamfetamine to the market. This suggests that Lisdexamfetamine replaced Atomoxetine and Dexamfetamine on the market.
+The data indicate that Methylphenidate has shown the highest increase in prescriptions over the years. Although Atomoxetine, Guanfacine, and Lisdexamfetamine have also seen a steady rise, their growth is not as pronounced as that of Methylphenidate. Notably, in May 2023, prescriptions for Guanfacine and Lisdexamfetamine declined, coinciding with the introduction of Dexamfetamine to the market. This suggests that Dexamfetamine replaced Guanfacine and Lisdexamfetamine on the market.
 
 A key limitation of this analysis is the lack of consideration for population changes in Scotland. Population growth could be greater than the increase in ADHD medication prescriptions, potentially skewing the observed trends. To address this, a per capita analysis is necessary to provide a clearer understanding of prescription patterns relative to population dynamics.
 
@@ -147,40 +143,42 @@ A key limitation of this analysis is the lack of consideration for population ch
 
 To further explore the increase in ADHD medication prescriptions in Scotland, I will compare the number of prescribed doses before and after the COVID-19 pandemic. This analysis will also account for population differences across Scottish Health Boards. For the pre-COVID comparison, I will use 2019 population data, representing the year just before the first lockdown. For the post-COVID period, 2023 will be the reference year, as complete data for 2024 is not yet available.
 
-### Load dataframes with Scottish Health Board names, populations, and shapefile
+I will load dataframes with Scottish Health Board names, populations, and shapefile.
 
 ```{r health board data, results='hide'}
 # ref: https://www.opendata.nhs.scot/dataset/9f942fdb-e59e-44f5-b534-d6e17229cc7b/resource/652ff726-e676-4a20-abda-435b98dd7bdc/download/hb14_hb19.csv
-hb_names <- read_csv(here("data", "hb_names.csv")) %>% 
-  clean_names() %>% 
+hb_names <- read_csv(here("data", "hb_names.csv")) %>%
+  clean_names() %>%
   select(hb, hb_name)
 
 # ref: https://www.opendata.nhs.scot/dataset/7f010430-6ce1-4813-b25c-f7f335bdc4dc/resource/27a72cc8-d6d8-430c-8b4f-3109a9ceadb1/download/hb2019_pop_est_14102024.csv
-hb_population <- read_csv(here("data", "hb_population.csv")) %>% 
-  clean_names() %>% 
-  filter(sex == "All") %>% 
+hb_population <- read_csv(here("data", "hb_population.csv")) %>%
+  clean_names() %>%
+  filter(sex == "All") %>%
   select(year, hb, all_ages)
 
 # ref: https://spatialdata.gov.scot/geonetwork/srv/api/records/f12c3826-4b4b-40e6-bf4f-77b9ed01dc14
-NHS_healthboards <- st_read(here("data", "NHS_healthboards_2019.shp")) %>% 
+NHS_healthboards <- st_read(here("data", "NHS_healthboards_2019.shp")) %>%
   clean_names()
 ```
 
-### Join the prescription dataframe with population file and the shapefile
+To analyse the data, I have to join the prescription dataframe with the population file and the shapefile.
 
 ```{r}
-map_data <- prescriptions %>% 
+map_data <- prescriptions %>%
   # change paid_date_month string into a number relating to the year a prescription was made
-  mutate(paid_date_month = year(ym(paid_date_month))) %>% 
+  mutate(paid_date_month = year(ym(paid_date_month))) %>%
   full_join(hb_population, by = c("hbt" = "hb", "paid_date_month" = "year")) %>%
   # filter for data from 2019 and 2023 and filter out unwanted health boards
-  filter(paid_date_month %in% c("2019", "2023"),
-         !(hbt %in% c("S92000003", "S08000021", "S08000023"))) %>% 
+  filter(
+    paid_date_month %in% c("2019", "2023"),
+    !(hbt %in% c("S92000003", "S08000021", "S08000023"))
+  ) %>%
   # get a sum of prescribed doses of ADHD medications for each health board per year
-  group_by(hbt, all_ages, paid_date_month) %>% 
-  summarise(paid_quantity = sum(paid_quantity)) %>% 
+  group_by(hbt, all_ages, paid_date_month) %>%
+  summarise(paid_quantity = sum(paid_quantity)) %>%
   # calculate the ratio of prescribed doses per population
-  mutate(ratio = paid_quantity / all_ages) %>% 
+  mutate(ratio = paid_quantity / all_ages) %>%
   full_join(NHS_healthboards, by = c("hbt" = "hb_code"))
 ```
 
@@ -190,15 +188,15 @@ I excluded the health boards `S92000003`, `S08000021`, and `S08000023` from the 
 
 ```{r map of scotland}
 # create a figure with two maps
-map_figure <- map_data %>% 
+map_figure <- map_data %>%
   ggplot(aes(fill = ratio, geometry = geometry, text = paste(hb_name, "had a ratio of", format(ratio, digits = 2), "in", paid_date_month))) +
   geom_sf(lwd = 0.1) +
   # set a colour palette
-  scale_fill_distiller(palette = 16, direction = 1) + 
+  scale_fill_distiller(palette = 16, direction = 1) +
   facet_wrap(~paid_date_month) +
   labs(title = "Prescribed Doses of ADHD Medications per Health Board Populations") +
   theme_void() +
-  theme(plot.title = element_text(size=11, face = "bold", color = "#483D8B"))
+  theme(plot.title = element_text(size = 11, face = "bold", color = "#446e9b"))
 
 # display the figure as an interactive map using ggplotly function from plotly package
 map_figure %>%
@@ -224,25 +222,25 @@ To account for changes in the ratios over time, I calculated a change for each H
 change_plot <- map_data %>%
   ungroup() %>%
   # create columns ratio_2019 and ratio_2023, and add ratio values to columns according to the year
-  pivot_wider(names_from = paid_date_month, values_from = ratio, 
+  pivot_wider(names_from = paid_date_month, values_from = ratio,
               names_prefix = "ratio_") %>%
   # aggregate ratio_2019 and ratio_2023 to get the first non-NA value for each health board
-  group_by(hb_name) %>% 
+  group_by(hb_name) %>%
   summarize(ratio_2019 = first(na.omit(ratio_2019)),
-            ratio_2023 = first(na.omit(ratio_2023))) %>% 
+            ratio_2023 = first(na.omit(ratio_2023))) %>%
   # calculate change of ratios of prescribed doses per person
-  mutate(change = ratio_2023 / ratio_2019) %>% 
+  mutate(change = ratio_2023 / ratio_2019) %>%
   # create a bar plot with a logarithmic scale
   ggplot(aes(x = reorder(hb_name, change), y = change, text = paste(hb_name, " has a ", format(change, digits = 2, trim = TRUE), "-fold change", sep = ""))) +
   geom_col() +
   scale_y_log10() +
   labs(title = "Change in Ratio of Prescribed Doses of ADHD Medications per Health Board Population", x = "Health Board Names", y = "Change in ratio between year 2019 and 2023") +
   theme_bw() +
-  theme(plot.title = element_text(size = 10.5, face = "bold", color = "#483D8B", hjust = 0.5),
-        axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
+  theme(plot.title = element_text(size = 10.5, face = "bold", color = "#446e9b", hjust = 0.5),
+        axis.text.x = element_text(angle = 30, vjust = 0.5, hjust = 1))
 
 # display an interactive bar plot using ggplotly function from plotly package
-change_plot %>% 
+change_plot %>%
   ggplotly(tooltip = "text")
 ```
 
@@ -284,7 +282,7 @@ past_year_prescriptions %>%
   # set text and style of title and subtitle
   tab_header(title = "Top 3 Most Prescribed ADHD Medications of Each Type in The Past Year",
              subtitle = "Data from NHS Lothian") %>% 
-  tab_style(style = cell_text(weight = "bold", color = "#483D8B"),
+  tab_style(style = cell_text(weight = "bold", color = "#446e9b"),
             locations = list(cells_title(groups = "title"), cells_row_groups(groups = everything()))) %>%
   # set text and style for spanner column label
   tab_spanner(label = "Rate per 10k population",
@@ -314,11 +312,15 @@ Most of the prescribed medications are in tablet or capsule form. However, Dexam
 
 # Conclusion
 
-This report demonstrated a consistent increase in the overall prescription of ADHD medication doses in Scotland between January 2019 and August 2024. When considering the number of doses per person in each Health Board, all except Tayside showed an increase between 2019 and 2023. The Western Isles had the most significant change, with a nearly 13-fold increase, followed by the Shetlands with an almost 3-fold increase—a striking difference between the largest and second-largest changes. Additionally, the most commonly prescribed dosages of ADHD medications in the Lothian area were examined, as this region is of personal interest due to me living Edinburgh. The most prescribed medication was Methylphenidate and the least prescribed was Dexamfetamine.
+This report demonstrated a consistent increase in the overall prescription of ADHD medication doses in Scotland between January 2019 and August 2024. When considering the number of doses per person in each Health Board, all except Tayside showed an increase between 2019 and 2023. The Western Isles had the most significant change, with a nearly 13-fold increase, followed by the Shetlands with an almost 3-fold increase—a striking difference between the largest and second-largest changes. Additionally, the most commonly prescribed dosages of ADHD medications in the Lothian area were examined, as this region is of personal interest due to me living in Edinburgh. The most prescribed medication was Methylphenidate and the least prescribed was Dexamfetamine.
 
 The answer to the research question is complex. While there was a clear increase in prescribed doses per person between the pre- and post-COVID-19 lockdown periods, it is difficult to attribute this trend solely to the pandemic. The increase may represent a continuation of a pre-existing upward trend, although the lockdowns might have accelerated this growth. A more comprehensive analysis comparing the rate of increase between earlier periods (e.g., 2015 to 2019) and recent years (2019 to 2023) would help clarify this hypothesis. However, such an analysis would require processing approximately 120 datasets, which presents logistical challenges.
 
+Another limitation of this analysis is the lack of consideration for the specific dosages and active ingredients of each medication. Different medications have varying dosage strengths and therapeutic requirements, which can influence prescription trends. For example, Atomoxetine and Lisdexamfetamine may appear less commonly prescribed because fewer doses might be needed for effective treatment, given their higher dosage strengths (10–60 mg capsules) compared to Methylphenidate, which typically comes in smaller doses (2–20 mg tablets). This difference makes direct comparisons between medications challenging and may obscure the actual prevalence of their use. Future studies could address this limitation by accounting for dosage differences and their implications for prescribing patterns.
+
 It is also important to note that ADHD medication prescription trends do not necessarily reflect the true prevalence of ADHD symptoms in Scotland. Many individuals diagnosed with ADHD do not receive medication, and others remain undiagnosed due to long waiting lists for assessments. For instance, the average waiting time for an ADHD diagnosis in Edinburgh is currently 23.5 months, according to the [Lothian NHS Board](https://org.nhslothian.scot/foi/wp-content/uploads/sites/22/2024/06/8722.pdf). Future research could expand this analysis by exploring additional factors influencing ADHD diagnosis and treatment, providing a deeper understanding of how the pandemic may have impacted ADHD symptoms and healthcare responses in Scotland.
+
+No generative AI was used in the report.
 
 # References
 
